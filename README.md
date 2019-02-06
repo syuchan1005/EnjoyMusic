@@ -5,3 +5,5 @@
 
 ## Screenshots
 ![Top](screenshots/top.png)
+
+![Playing](screenshots/playing_card.png)
