@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">EnjoyMusic</string>
+    <string name="title_add">ADD</string>
+    <string name="thumbnail">thumbnail</string>
+</resources>
