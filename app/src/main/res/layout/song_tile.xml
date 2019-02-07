@@ -21,6 +21,7 @@
         android:layout_height="80dp"
         android:layout_marginStart="10dp"
         android:textAppearance="@style/TextAppearance.AppCompat.Headline"
+        android:text="Title"
         app:layout_flexGrow="1" />
 
     <com.google.android.material.button.MaterialButton
@@ -56,6 +57,7 @@
             android:id="@+id/play_button"
             android:layout_width="50dp"
             android:layout_height="50dp"
+            style="@style/Widget.MaterialComponents.Button.Icon"
             app:icon="@drawable/ic_play_arrow_black_24dp" />
     </com.google.android.flexbox.FlexboxLayout>
 </com.google.android.flexbox.FlexboxLayout>

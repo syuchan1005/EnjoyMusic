@@ -2,7 +2,7 @@ package com.github.syuchan1005.enjoymusic.view
 
 import android.content.Intent
 import android.os.Bundle
-import androidx.recyclerview.widget.ItemTouchHelper
+import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.github.syuchan1005.enjoymusic.R
@@ -39,7 +39,7 @@ class MainActivity : BaseActivity(), Injectable {
             setHasFixedSize(true)
             layoutManager = viewManager
             adapter = viewAdapter
-            // ItemTouchHelper(MusicAdapter.SwipeToDeleteCallback(adapter = viewAdapter)).attachToRecyclerView(this)
+            addItemDecoration(DividerItemDecoration(this.context, LinearLayoutManager.VERTICAL))
         }
 
         store.musics
@@ -52,5 +52,6 @@ class MainActivity : BaseActivity(), Injectable {
             }
             .disposeWhenDestroy()
         actionCreator.addMusic(MusicAdapter.MusicData("Victim", "RbYva7AE8Aw"))
+        actionCreator.addMusic(MusicAdapter.MusicData("Within", "3UJ_mERvw3A"))
     }
 }

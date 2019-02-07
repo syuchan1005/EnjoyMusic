@@ -36,7 +36,75 @@ class MusicAdapter constructor(
     val musics = mutableListOf<MusicData>()
     var expand = -1
 
-    data class MusicData(val name: String, val url: String, var open: Boolean = false)
+    class MusicData(val name: String, val url: String) {
+        var player: MediaPlayer? = null
+
+        private var bindSeekBar: SeekBar? = null
+        private val seekBarUpdateHandler = Handler()
+        private val updateSeekBar = object : Runnable {
+            override fun run() {
+                bindSeekBar?.progress = player!!.currentPosition
+                seekBarUpdateHandler.postDelayed(this, 50)
+            }
+        }
+
+        fun prepare(adapter: MusicAdapter, callback: ((MediaPlayer) -> Unit)?) {
+            if (player == null) {
+                adapter.queue.add(StringRequest("https://youtube.com/get_video_info?video_id=${url}&el=detailpage", {
+                    player = MediaPlayer()
+                    player!!.setDataSource(extractURL(it))
+                    player!!.prepare()
+
+                    callback?.invoke(player!!)
+                }, null))
+            } else {
+                callback?.invoke(player!!)
+            }
+        }
+
+        fun bindSeekBar(seekBar: SeekBar) {
+            if (bindSeekBar == seekBar) return
+            bindSeekBar = seekBar
+            val data = this
+
+            bindSeekBar!!.max = player!!.duration
+            bindSeekBar!!.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onStartTrackingTouch(p0: SeekBar?) {
+                    data.pause()
+                }
+
+                override fun onStopTrackingTouch(p0: SeekBar?) {}
+
+                override fun onProgressChanged(seekbar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    if (fromUser) {
+                        player!!.seekTo(progress)
+                        data.start()
+                    }
+                }
+            })
+        }
+
+        fun start() {
+            if (player != null) {
+                player!!.start()
+                seekBarUpdateHandler.postDelayed(updateSeekBar, 0)
+            }
+        }
+
+        fun pause() {
+            if (player != null) {
+                player!!.pause()
+                seekBarUpdateHandler.removeCallbacks(updateSeekBar)
+            }
+        }
+
+        private fun extractURL(str: String): String {
+            val fmtsIndex = str.indexOf("adaptive_fmts=")
+            val fmts = URLDecoder.decode(str.substring(fmtsIndex, str.indexOf('&', fmtsIndex)), "utf8")
+            val urlIndex = fmts.indexOf("url=", fmts.indexOf("type=audio%2Fmp4")) + 4
+            return URLDecoder.decode(fmts.substring(urlIndex, fmts.indexOf('&', urlIndex)), "UTF8")
+        }
+    }
 
     class MyViewHolder(val view: View) : RecyclerView.ViewHolder(view)
 
@@ -68,69 +136,51 @@ class MusicAdapter constructor(
         }
 
         val moreButton = holder.view.findViewById<MaterialButton>(R.id.more_button)
+        val playButton = holder.view.findViewById<MaterialButton>(R.id.play_button)
+        val seekBar = holder.view.findViewById<SeekBar>(R.id.seek_bar)
+
         moreButton.setOnClickListener {
-            if (expand == position) expand = -1
-            else {
+            if (expand != -1) musics[expand].pause()
+
+            if (expand == position) {
+                expand = -1
+            } else {
                 notifyItemChanged(expand)
                 expand = position
             }
+            playButton.icon = activity.getDrawable(R.drawable.ic_play_arrow_black_24dp)
             notifyItemChanged(position)
         }
 
-        val playButton = holder.view.findViewById<MaterialButton>(R.id.play_button)
-        val seekBar = holder.view.findViewById<SeekBar>(R.id.seek_bar)
-        var player: MediaPlayer? = null
-        val seekBarUpdateHandler = Handler()
-        val updateSeekBar = object : Runnable {
-            override fun run() {
-                seekBar.setProgress(player!!.currentPosition)
-                seekBarUpdateHandler.postDelayed(this, 50)
-            }
-        }
         playButton.setOnClickListener {
-            if (player == null) {
-                queue.add(StringRequest("https://youtube.com/get_video_info?video_id=${musicData.url}&el=detailpage", {
-                    player = MediaPlayer()
-                    player!!.setDataSource(extractURL(it))
-                    player!!.prepare()
-
-                    player!!.start()
-                    seekBar.max = player!!.duration
-                    seekBarUpdateHandler.postDelayed(updateSeekBar, 0)
-                    seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                        override fun onStartTrackingTouch(p0: SeekBar?) {
-                            player!!.pause()
-                            seekBarUpdateHandler.removeCallbacks(updateSeekBar)
-                        }
-                        override fun onStopTrackingTouch(p0: SeekBar?) {}
-
-                        override fun onProgressChanged(seekbar: SeekBar?, progress: Int, fromUser: Boolean) {
-                            if (fromUser) {
-                                player!!.seekTo(progress)
-                                player!!.start()
-                                seekBarUpdateHandler.postDelayed(updateSeekBar, 0)
-                            }
-                        }
-                    })
-
+            when {
+                musicData.player == null -> {
+                    playButton.isEnabled = false
+                    musicData.prepare(this) {
+                        musicData.bindSeekBar(seekBar)
+                        musicData.start()
+                        playButton.icon = activity.getDrawable(R.drawable.ic_pause_black_24dp)
+                        playButton.isEnabled = true
+                    }
+                }
+                musicData.player!!.isPlaying -> {
+                    musicData.pause()
+                    playButton.icon = activity.getDrawable(R.drawable.ic_play_arrow_black_24dp)
+                }
+                else -> {
+                    musicData.start()
                     playButton.icon = activity.getDrawable(R.drawable.ic_pause_black_24dp)
-                }, null))
-            } else if (player!!.isPlaying) {
-                player!!.pause()
-                seekBarUpdateHandler.removeCallbacks(updateSeekBar)
-                playButton.icon = activity.getDrawable(R.drawable.ic_play_arrow_black_24dp)
-            } else {
-                player!!.start()
-                seekBarUpdateHandler.postDelayed(updateSeekBar, 0)
-                playButton.icon = activity.getDrawable(R.drawable.ic_pause_black_24dp)
+                }
             }
         }
 
         val layoutParams = holder.view.layoutParams
         layoutParams.height = dp2px(if (expand == position) 160F else 80F, activity)
         holder.view.layoutParams = layoutParams
-        moreButton.icon =
-                activity.getDrawable(if (expand == position) R.drawable.ic_keyboard_arrow_up_black_24dp else R.drawable.ic_keyboard_arrow_down_black_24dp)
+        moreButton.icon = activity.getDrawable(
+            if (expand == position) R.drawable.ic_keyboard_arrow_up_black_24dp
+            else R.drawable.ic_keyboard_arrow_down_black_24dp
+        )
     }
 
     fun dp2px(dp: Float, context: Context): Int {
@@ -138,68 +188,6 @@ class MusicAdapter constructor(
             .toInt()
     }
 
-    fun extractURL(str: String): String {
-        val fmtsIndex = str.indexOf("adaptive_fmts=")
-        val fmts = URLDecoder.decode(str.substring(fmtsIndex, str.indexOf('&', fmtsIndex)), "utf8")
-        val urlIndex = fmts.indexOf("url=", fmts.indexOf("type=audio%2Fmp4")) + 4
-        return URLDecoder.decode(fmts.substring(urlIndex, fmts.indexOf('&', urlIndex)), "UTF8")
-    }
-
     override fun getItemCount() = musics.size
 
-    fun deleteItem(position: Int) {
-        actionCreator.removeMusic(position)
-        notifyItemRemoved(position)
-    }
-
-    class SwipeToDeleteCallback constructor(
-        dragDirs: Int = 0,
-        swipeDirs: Int = ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT,
-        private val adapter: MusicAdapter
-    ) : ItemTouchHelper.SimpleCallback(dragDirs, swipeDirs) {
-
-        private val background = ColorDrawable(Color.RED)
-
-        override fun onMove(
-            recyclerView: RecyclerView,
-            viewHolder: RecyclerView.ViewHolder,
-            target: RecyclerView.ViewHolder
-        ): Boolean {
-            return false
-        }
-
-        override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
-            adapter.deleteItem(viewHolder.adapterPosition)
-        }
-
-        override fun onChildDraw(
-            c: Canvas,
-            recyclerView: RecyclerView,
-            viewHolder: RecyclerView.ViewHolder,
-            dX: Float,
-            dY: Float,
-            actionState: Int,
-            isCurrentlyActive: Boolean
-        ) {
-            super.onChildDraw(c, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive)
-            val itemView = viewHolder.itemView
-            val backgroundCornerOffset = 20
-            if (dX > 0) { // Swiping to the right
-                background.setBounds(
-                    itemView.getLeft(), itemView.getTop(),
-                    itemView.getLeft() + dX.toInt() + backgroundCornerOffset,
-                    itemView.getBottom()
-                )
-
-            } else if (dX < 0) { // Swiping to the left
-                background.setBounds(
-                    itemView.getRight() + dX.toInt() - backgroundCornerOffset,
-                    itemView.getTop(), itemView.getRight(), itemView.getBottom()
-                )
-            } else { // view is unSwiped
-                background.setBounds(0, 0, 0, 0)
-            }
-            background.draw(c)
-        }
-    }
 }
